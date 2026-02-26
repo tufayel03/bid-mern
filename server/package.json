@@ -1,0 +1,28 @@
+{
+  "name": "bidnsteal-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend services and infra for BIDNSTEAL",
+  "workspaces": [
+    "worker",
+    "shared"
+  ],
+  "scripts": {
+    "ensure:env": "node ./scripts/ensure-env.js",
+    "dev": "npm run dev:worker",
+    "dev:api": "npm run ensure:env && node ./api/index.js",
+    "dev:worker": "npm run ensure:env && npm run redis:start && npm --workspace @hotwheels/worker run dev",
+    "build": "npm --workspace @hotwheels/shared run build && npm --workspace @hotwheels/worker run build",
+    "start": "npm run start:api",
+    "start:api": "npm run ensure:env && node ./api/index.js",
+    "start:worker": "npm run ensure:env && npm --workspace @hotwheels/worker run start",
+    "typecheck": "npm --workspace @hotwheels/shared run typecheck && npm --workspace @hotwheels/worker run typecheck",
+    "lint": "npm run -ws lint",
+    "test": "npm run -ws test --if-present",
+    "redis:install": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/redis-local-install.ps1",
+    "redis:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/redis-local-start.ps1",
+    "redis:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/redis-local-stop.ps1",
+    "redis:ping": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/redis-local-ping.ps1",
+    "redis:status": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/redis-local-status.ps1"
+  }
+}

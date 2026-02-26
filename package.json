@@ -1,0 +1,28 @@
+{
+  "name": "bidnsteal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Organized BIDNSTEAL project root (client + server)",
+  "scripts": {
+    "dev": "concurrently -n client,api,worker -c cyan,green,magenta \"npm run dev:client\" \"npm run dev:api\" \"npm run dev:worker\"",
+    "dev:server": "npm --prefix server run dev:worker",
+    "dev:api": "npm --prefix server run dev:api",
+    "dev:worker": "npm --prefix server run dev:worker",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix server run build",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "start": "npm --prefix server run start:api",
+    "start:api": "npm --prefix server run start:api",
+    "start:worker": "npm --prefix server run start:worker",
+    "typecheck": "npm --prefix server run typecheck",
+    "redis:install": "npm --prefix server run redis:install",
+    "redis:start": "npm --prefix server run redis:start",
+    "redis:stop": "npm --prefix server run redis:stop",
+    "redis:ping": "npm --prefix server run redis:ping",
+    "redis:status": "npm --prefix server run redis:status"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
