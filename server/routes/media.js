@@ -31,6 +31,15 @@ router.get('/', async (req, res) => {
         const skip = (page - 1) * limit;
 
         const query = {};
+        if (req.query.trash === 'true') {
+            query.deletedAt = { $ne: null };
+        } else {
+            query.$or = [
+                { deletedAt: null },
+                { deletedAt: { $exists: false } }
+            ];
+        }
+
         if (req.query.search) {
             query.fileName = new RegExp(req.query.search, 'i');
         }
@@ -78,6 +87,33 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 });
 
+router.post('/:id/restore', async (req, res) => {
+    try {
+        const { id } = req.params;
+        let media;
+
+        const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+        if (isObjectId) {
+            media = await Media.findById(id);
+        }
+
+        if (!media) {
+            media = await Media.findOne({ fileName: id });
+        }
+
+        if (!media) {
+            return res.status(404).json({ message: 'Media not found' });
+        }
+
+        media.deletedAt = null;
+        await media.save();
+        res.json({ ok: true, message: 'Media restored' });
+    } catch (err) {
+        console.error('Restore media error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
 router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -90,6 +126,35 @@ router.delete('/:id', async (req, res) => {
         }
 
         // If not found by ID (or not an ID), try finding by fileName
+        if (!media) {
+            media = await Media.findOne({ fileName: id });
+        }
+
+        if (!media) {
+            return res.status(404).json({ message: 'Media not found' });
+        }
+
+        // Soft delete: don't remove from disk yet
+        media.deletedAt = new Date();
+        await media.save();
+
+        res.json({ ok: true, message: 'Media moved to trash' });
+    } catch (err) {
+        console.error('Delete media error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.delete('/:id/hard', async (req, res) => {
+    try {
+        const { id } = req.params;
+        let media;
+
+        const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+        if (isObjectId) {
+            media = await Media.findById(id);
+        }
+
         if (!media) {
             media = await Media.findOne({ fileName: id });
         }
@@ -112,9 +177,9 @@ router.delete('/:id', async (req, res) => {
         }
 
         await Media.deleteOne({ _id: media._id });
-        res.json({ ok: true });
+        res.json({ ok: true, message: 'Media permanently deleted' });
     } catch (err) {
-        console.error('Delete media error:', err);
+        console.error('Hard delete media error:', err);
         res.status(500).json({ message: err.message });
     }
 });

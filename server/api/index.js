@@ -33,6 +33,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+app.use(express.text());
+app.use((req, res, next) => { console.log('[API Request]', req.method, req.originalUrl); next(); });
 app.use('/uploads', express.static(path.join(__dirname, '..', '..', 'shared', 'uploads')));
 
 

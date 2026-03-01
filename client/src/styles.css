@@ -1813,3 +1813,62 @@ textarea:focus,
   margin-bottom: 16px;
   position: relative;
 }
+
+/* Cyberpunk Utilities for Product Form overhaul */
+.bg-grid-pattern {
+  background-image: linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.bg-cyber-scanline {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    transparent 50%,
+    rgba(0, 0, 0, 0.5) 50%,
+    rgba(0, 0, 0, 0.5)
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+.custom-scrollbar-heavy::-webkit-scrollbar {
+  width: 10px;
+}
+.custom-scrollbar-heavy::-webkit-scrollbar-track {
+  background: #05050a;
+}
+.custom-scrollbar-heavy::-webkit-scrollbar-thumb {
+  background: #1f1f3a;
+  border: 2px solid #05050a;
+  border-radius: 4px;
+}
+.custom-scrollbar-heavy::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+  box-shadow: 0 0 10px var(--primary);
+}
+
+.inverted-datetime-color::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+@keyframes cyber-scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.cyber-scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--primary);
+  box-shadow: 0 0 15px var(--primary);
+  opacity: 0.2;
+  animation: cyber-scan 4s linear infinite;
+  pointer-events: none;
+}
+

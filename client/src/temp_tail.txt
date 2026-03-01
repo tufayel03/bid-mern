@@ -1,0 +1,10 @@
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.admin-inset-card {
+  border: 1px solid var(--border);
+  background: rgba(15, 15, 25, 0.6);
+  padding: 16px;
+  margin-bottom: 16px;
+  position: relative;
+}

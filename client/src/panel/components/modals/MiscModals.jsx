@@ -86,9 +86,25 @@ export function MiscModals() {
 
             {/* Toast */}
             {toast.show && (
-                <div className="fixed bottom-4 right-4 z-[130] bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 shadow-2xl text-sm transition-opacity duration-300">
-                    <p className={toast.type === 'error' ? 'text-red-300' : toast.type === 'success' ? 'text-green-300' : 'text-zinc-200'}>
-                        {toast.message}
+                <div style={{
+                    position: 'fixed',
+                    top: '80px',
+                    right: '24px',
+                    zIndex: 9999,
+                    minWidth: '280px',
+                    maxWidth: '420px',
+                    padding: '14px 18px',
+                    borderRadius: '4px',
+                    background: 'rgba(5, 10, 24, 0.97)',
+                    border: `1px solid ${toast.type === 'error' ? 'var(--danger)' : toast.type === 'success' ? 'var(--primary)' : 'var(--border-strong)'}`,
+                    boxShadow: `0 0 18px ${toast.type === 'error' ? 'rgba(255,50,50,0.25)' : toast.type === 'success' ? 'rgba(0,243,255,0.2)' : 'rgba(0,0,0,0.4)'}`,
+                    fontSize: '13px',
+                    fontFamily: 'var(--font-mono, monospace)',
+                    letterSpacing: '0.03em',
+                    pointerEvents: 'none'
+                }}>
+                    <p style={{ margin: 0, color: toast.type === 'error' ? 'var(--danger)' : toast.type === 'success' ? 'var(--primary)' : '#e2e8f0' }}>
+                        {toast.type === 'error' ? '⚠ ' : toast.type === 'success' ? '✓ ' : ''}{toast.message}
                     </p>
                 </div>
             )}

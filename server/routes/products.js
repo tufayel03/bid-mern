@@ -9,13 +9,24 @@ router.get('/', async (req, res) => {
         const skip = (page - 1) * limit;
 
         const query = {};
-        if (req.query.search) {
+        if (req.query.trash === 'true') {
+            query.deletedAt = { $ne: null };
+        } else {
             query.$or = [
-                { title: new RegExp(req.query.search, 'i') },
-                { sku: new RegExp(req.query.search, 'i') }
+                { deletedAt: null },
+                { deletedAt: { $exists: false } }
             ];
         }
-        if (req.query.saleMode) {
+        if (req.query.search) {
+            query.$and = query.$and || [];
+            query.$and.push({
+                $or: [
+                    { title: new RegExp(req.query.search, 'i') },
+                    { sku: new RegExp(req.query.search, 'i') }
+                ]
+            });
+        }
+        if (req.query.saleMode && req.query.saleMode !== 'All Sale Modes') {
             query.saleMode = req.query.saleMode;
         }
 
@@ -63,9 +74,37 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
     try {
+        const product = await Product.findById(req.params.id);
+        if (!product) return res.status(404).json({ message: 'Product not found' });
+
+        product.deletedAt = new Date();
+        await product.save();
+
+        res.json({ ok: true, message: 'Product moved to trash' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.post('/:id/restore', async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+        if (!product) return res.status(404).json({ message: 'Product not found' });
+
+        product.deletedAt = null;
+        await product.save();
+
+        res.json({ ok: true, message: 'Product restored' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.delete('/:id/hard', async (req, res) => {
+    try {
         const product = await Product.findByIdAndDelete(req.params.id);
         if (!product) return res.status(404).json({ message: 'Product not found' });
-        res.json({ ok: true });
+        res.json({ ok: true, message: 'Product permanently deleted' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

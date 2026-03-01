@@ -10,41 +10,62 @@ export function InventoryTab() {
         <div style={{ display: 'grid', gap: '24px' }}>
             <div className="admin-tab-header">
                 <div>
-                    <h2>Inventory Management</h2>
-                    <p>Manage products, view stock levels, and control pricing.</p>
+                    <h2>{admin.inventoryTrashMode ? 'Inventory Trash' : 'Inventory Management'}</h2>
+                    <p>{admin.inventoryTrashMode ? 'Restore deleted products or permanently erase them.' : 'Manage products, view stock levels, and control pricing.'}</p>
                 </div>
-                <button
-                    onClick={() => admin.openProductCreate && admin.openProductCreate()}
-                    className="order-filter-btn primary"
-                >
-                    + Add Product
-                </button>
+                {!admin.inventoryTrashMode && (
+                    <button
+                        onClick={() => admin.openProductCreate && admin.openProductCreate()}
+                        className="order-filter-btn primary"
+                    >
+                        + Add Product
+                    </button>
+                )}
             </div>
 
-            <div className="admin-filter-bar">
-                <input
-                    value={inventoryFilters.search || ''}
-                    onChange={(e) => { admin.inventoryFilters.search = e.target.value; }}
-                    type="text"
-                    placeholder="Search title, slug..."
-                    className="admin-search-input"
-                />
-                <select
-                    value={inventoryFilters.saleMode || 'All Sale Modes'}
-                    onChange={(e) => { admin.inventoryFilters.saleMode = e.target.value; }}
-                    className="order-filter-select"
-                    style={{ flex: '0 1 auto', minWidth: '150px' }}
-                >
-                    <option>All Sale Modes</option>
-                    <option>Fixed Price</option>
-                    <option>Auction</option>
-                </select>
-                <button
-                    onClick={() => admin.loadInventory && admin.loadInventory(true)}
-                    className="order-filter-btn"
-                >
-                    Apply Filters
-                </button>
+            <div className="admin-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', gap: '12px', flex: 1, minWidth: '200px', alignItems: 'center' }}>
+                    <input
+                        value={inventoryFilters.search || ''}
+                        onChange={(e) => { admin.inventoryFilters.search = e.target.value; }}
+                        type="text"
+                        placeholder="Search title, slug..."
+                        className="admin-search-input"
+                        style={{ flex: 1 }}
+                    />
+                    <select
+                        value={inventoryFilters.saleMode || 'All Sale Modes'}
+                        onChange={(e) => { admin.inventoryFilters.saleMode = e.target.value; }}
+                        className="order-filter-select"
+                        style={{ flex: '0 1 auto', minWidth: '150px' }}
+                    >
+                        <option>All Sale Modes</option>
+                        <option>Fixed Price</option>
+                        <option>Auction</option>
+                    </select>
+                    <button
+                        onClick={() => admin.loadInventory && admin.loadInventory(true)}
+                        className="order-filter-btn"
+                    >
+                        Apply Filters
+                    </button>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', background: 'rgba(0, 243, 255, 0.05)', padding: '6px', borderRadius: '4px', border: '1px solid var(--border-strong)', boxShadow: 'inset 0 0 10px rgba(0, 243, 255, 0.05)' }}>
+                    <button
+                        onClick={() => { admin.inventoryTrashMode = !admin.inventoryTrashMode; admin.loadInventory && admin.loadInventory(true).then(() => admin.forceUpdate && admin.forceUpdate()); }}
+                        className="order-filter-btn"
+                        style={{
+                            padding: '6px 16px', fontSize: '12px',
+                            background: admin.inventoryTrashMode ? 'var(--primary-magenta)' : 'transparent',
+                            color: admin.inventoryTrashMode ? '#000' : 'var(--primary-magenta)',
+                            border: admin.inventoryTrashMode ? 'none' : '1px solid var(--primary-magenta)',
+                            textShadow: admin.inventoryTrashMode ? 'none' : '0 0 5px var(--primary-magenta)',
+                            boxShadow: admin.inventoryTrashMode ? '0 0 15px rgba(255, 0, 255, 0.4)' : 'none'
+                        }}
+                    >
+                        {admin.inventoryTrashMode ? 'VIEW INVENTORY' : 'TRASH BIN'}
+                    </button>
+                </div>
             </div>
 
             <div className="order-panel p-3 flex flex-wrap items-center gap-2">
@@ -68,7 +89,7 @@ export function InventoryTab() {
                         disabled={!(admin.selectedInventoryCount && admin.selectedInventoryCount()) || inventoryDeleting}
                         className="order-filter-btn danger"
                     >
-                        {inventoryDeleting ? 'Deleting...' : 'Delete Selected'}
+                        {inventoryDeleting ? 'Deleting...' : (admin.inventoryTrashMode ? 'Delete Forever' : 'Trash Selected')}
                     </button>
                 </div>
             </div>
@@ -134,11 +155,31 @@ export function InventoryTab() {
                                 </td>
                                 <td>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <button onClick={() => admin.openProductEdit && admin.openProductEdit(item)} className="order-filter-btn" style={{ padding: '6px 10px' }}>
-                                            <Icon name="edit-3" style={{ width: '14px', height: '14px' }} />
-                                        </button>
-                                        <button onClick={() => admin.deleteProduct && admin.deleteProduct(item)} className="order-filter-btn danger" style={{ padding: '6px 10px' }}>
-                                            <Icon name="trash-2" style={{ width: '14px', height: '14px' }} />
+                                        {admin.inventoryTrashMode ? (
+                                            <button
+                                                onClick={() => admin.restoreProduct && admin.restoreProduct(item)}
+                                                className="order-filter-btn primary"
+                                                style={{ padding: '6px 10px', color: '#fff' }}
+                                                title="Restore"
+                                            >
+                                                <Icon name="rotate-ccw" style={{ width: '14px', height: '14px' }} />
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => admin.openProductEdit && admin.openProductEdit(item)}
+                                                className="order-filter-btn"
+                                                style={{ padding: '6px 10px' }}
+                                            >
+                                                <Icon name="edit-3" style={{ width: '14px', height: '14px' }} />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => admin.deleteProduct && admin.deleteProduct(item)}
+                                            className="order-filter-btn danger"
+                                            style={{ padding: '6px 10px' }}
+                                            title={admin.inventoryTrashMode ? 'Permanent Erase' : 'Move to Trash'}
+                                        >
+                                            <Icon name={admin.inventoryTrashMode ? 'x-circle' : 'trash-2'} style={{ width: '14px', height: '14px' }} />
                                         </button>
                                     </div>
                                 </td>
@@ -147,6 +188,42 @@ export function InventoryTab() {
                     </tbody>
                 </table>
             </div>
+
+            {admin.inventoryDeleteModal && (
+                <div className="admin-modal-overlay">
+                    <div className="admin-modal" style={{ maxWidth: '400px', textAlign: 'center', boxShadow: '0 0 30px rgba(239, 68, 68, 0.2)', border: '1px solid var(--primary-magenta)' }}>
+                        <h3 style={{ color: 'var(--primary-magenta)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                            {admin.inventoryTrashMode ? 'Permanent Erase' : 'Move to Trash'}
+                        </h3>
+                        <p style={{ color: '#8fa0be', marginBottom: '24px', fontSize: '14px' }}>
+                            {admin.inventoryDeleteModal.type === 'single' && (
+                                <>Are you sure you want to {admin.inventoryTrashMode ? 'forever erase' : 'trash'} <br /><strong style={{ color: '#fff' }}>{admin.inventoryDeleteModal.item?.title || admin.inventoryDeleteModal.item?.slug}</strong>?</>
+                            )}
+                            {admin.inventoryDeleteModal.type === 'selected' && (
+                                <>Are you sure you want to {admin.inventoryTrashMode ? 'forever erase' : 'trash'} <strong>{admin.inventoryDeleteModal.count}</strong> selected product(s)?</>
+                            )}
+                            <br /><br />
+                            {admin.inventoryTrashMode ? 'This action cannot be undone.' : 'You can restore them later from the Trash Bin.'}
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <button
+                                onClick={() => { admin.inventoryDeleteModal = null; admin.forceUpdate && admin.forceUpdate(); }}
+                                className="nl-input"
+                                style={{ textAlign: 'center', cursor: 'pointer' }}
+                            >
+                                CANCEL
+                            </button>
+                            <button
+                                onClick={() => admin.executeInventoryDelete && admin.executeInventoryDelete(admin.inventoryDeleteModal)}
+                                className="order-filter-btn danger"
+                                style={{ height: 'auto', padding: '12px', fontSize: '14px', letterSpacing: '0.1em' }}
+                            >
+                                CONFIRM
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

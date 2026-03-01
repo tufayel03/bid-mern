@@ -15,6 +15,7 @@ import { SubscribersTab } from '../panel/tabs/SubscribersTab';
 import { CampaignsTab } from '../panel/tabs/CampaignsTab';
 import { CouponsTab } from '../panel/tabs/CouponsTab';
 import { ReportsTab } from '../panel/tabs/ReportsTab';
+import { ProductFormTab } from '../panel/tabs/ProductFormTab';
 import { AdminModals } from '../panel/components/modals/AdminModals';
 
 function AdminLayout() {
@@ -60,6 +61,8 @@ function AdminLayout() {
       case 'inventory':
       case 'products':
         return <InventoryTab />;
+      case 'product-form':
+        return <ProductFormTab />;
       case 'media':
         return <MediaTab />;
       case 'auctions':

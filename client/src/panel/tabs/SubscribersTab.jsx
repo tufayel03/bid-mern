@@ -13,6 +13,7 @@ export function SubscribersTab() {
                     <p>Manage newsletter contacts across manual insertion, footers, and checkouts.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
+                    <button onClick={() => admin.importSubscribersCsv && admin.importSubscribersCsv()} className="order-filter-btn">Import CSV</button>
                     <button onClick={() => admin.exportSubscribersCsv && admin.exportSubscribersCsv()} className="order-filter-btn">Export CSV</button>
                     <button onClick={() => admin.loadSubscribers && admin.loadSubscribers(true)} className="order-filter-btn">Reload</button>
                 </div>

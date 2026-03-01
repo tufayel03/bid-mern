@@ -515,8 +515,8 @@ export const adminMethods = {
     const [metrics, financial, ordersRes, productsRes, subscribersRes, reservationsRes] = await Promise.all([
       this.apiRequest("/metrics"),
       this.apiRequest("/admin/financial/summary"),
-      this.apiRequest("/orders?page=1&limit=60"),
-      this.apiRequest("/products?page=1&limit=60&sort=newest"),
+      this.apiRequest("/admin/orders?page=1&limit=60"),
+      this.apiRequest("/admin/products?page=1&limit=60&sort=newest"),
       this.apiRequest("/admin/subscribers?page=1&limit=1"),
       this.apiRequest("/admin/reservations")
     ]);
@@ -643,11 +643,12 @@ export const adminMethods = {
         ? "fixed"
         : "auction";
 
-    const productsRes = await this.apiRequest(`/products?${this.toQueryString({
-      page: 1,
+    const productsRes = await this.apiRequest(`/admin/products?${this.toQueryString({
+      ...this.inventoryFilters,
       limit: 100,
       search: this.inventoryFilters.search,
-      saleMode
+      saleMode,
+      trash: this.inventoryTrashMode ? 'true' : 'false'
     })}`);
 
     const reservationsRes = await this.apiRequest("/admin/reservations");
@@ -736,12 +737,24 @@ export const adminMethods = {
     return this.selectedInventoryIds().length;
   },
 
-  async loadMedia(searchOverride) {
+  async loadMedia(searchOverride, resetPage = false) {
+    if (resetPage) {
+      this.mediaFilters.page = 1;
+    }
     const search = typeof searchOverride === "string" ? searchOverride : this.mediaFilters.search;
     const response = await this.apiRequest(`/admin/media?${this.toQueryString({
-      search
+      search,
+      page: this.mediaFilters.page,
+      limit: this.mediaFilters.limit,
+      trash: this.mediaTrashMode ? 'true' : 'false'
     })}`);
     this.mediaAssets = response.items || [];
+    this.mediaMeta = {
+      page: response.page || 1,
+      limit: response.limit || 30,
+      total: response.total || 0,
+      totalPages: response.totalPages || 1
+    };
     this.syncMediaSelection();
   },
 
@@ -1000,15 +1013,79 @@ export const adminMethods = {
   },
 
   async deleteMedia(item) {
+    if (!item?.fileName) return;
+    this.mediaDeleteModal = { type: 'single', item };
+    if (this.forceUpdate) this.forceUpdate();
+  },
+
+  async executeMediaDelete(modalData) {
+    try {
+      this.mediaDeleteModal = null;
+      if (this.forceUpdate) this.forceUpdate();
+
+      if (modalData.type === 'single' && modalData.item?.fileName) {
+        if (this.mediaTrashMode) {
+          await this.hardDeleteMediaByFileName(modalData.item.fileName);
+        } else {
+          await this.deleteMediaByFileName(modalData.item.fileName);
+        }
+        this.notify(this.mediaTrashMode ? "Media permanently deleted." : "Media moved to trash.", "success");
+      } else if (modalData.type === 'selected') {
+        const fileNames = this.selectedMediaFileNames();
+        const failed = [];
+        let deleted = 0;
+        for (const fileName of fileNames) {
+          try {
+            if (this.mediaTrashMode) {
+              await this.hardDeleteMediaByFileName(fileName);
+            } else {
+              await this.deleteMediaByFileName(fileName);
+            }
+            deleted += 1;
+          } catch {
+            failed.push(fileName);
+          }
+        }
+        if (deleted) this.notify(`${deleted} selected image(s) deleted.`, "success");
+        if (failed.length) this.notify(`Failed to delete ${failed.length} image(s).`, "error");
+      } else if (modalData.type === 'all') {
+        const fileNames = this.mediaAssets
+          .map((item) => String(item?.fileName || "").trim())
+          .filter(Boolean);
+        const failed = [];
+        let deleted = 0;
+        for (const fileName of fileNames) {
+          try {
+            if (this.mediaTrashMode) {
+              await this.hardDeleteMediaByFileName(fileName);
+            } else {
+              await this.deleteMediaByFileName(fileName);
+            }
+            deleted += 1;
+          } catch {
+            failed.push(fileName);
+          }
+        }
+        this.clearMediaSelection();
+        if (deleted) this.notify(`${deleted} listed image(s) deleted.`, "success");
+        if (failed.length) this.notify(`Failed to delete ${failed.length} image(s).`, "error");
+      }
+
+      await this.loadMedia();
+    } catch (error) {
+      this.notify(this.errorMessage(error), "error");
+    }
+  },
+
+  async restoreMedia(item) {
     try {
       if (!item?.fileName) {
         return;
       }
-      if (!confirm(`Delete media "${item.fileName}"?`)) {
-        return;
-      }
-      await this.deleteMediaByFileName(item.fileName);
-      this.notify("Media deleted.", "success");
+      await this.apiRequest(`/admin/media/${encodeURIComponent(item.fileName)}/restore`, {
+        method: "POST"
+      });
+      this.notify("Media restored.", "success");
       await this.loadMedia();
     } catch (error) {
       this.notify(this.errorMessage(error), "error");
@@ -1029,33 +1106,57 @@ export const adminMethods = {
     }
   },
 
+  async hardDeleteMediaByFileName(fileName) {
+    const normalized = String(fileName || "").trim();
+    if (!normalized) {
+      return;
+    }
+    await this.apiRequest(`/admin/media/${encodeURIComponent(normalized)}/hard`, {
+      method: "DELETE"
+    });
+    if (this.mediaSelection[normalized]) {
+      delete this.mediaSelection[normalized];
+      this.mediaSelection = { ...this.mediaSelection };
+    }
+  },
+
   async deleteSelectedMedia() {
+    const fileNames = this.selectedMediaFileNames();
+    if (!fileNames.length) {
+      this.notify("Select images first.", "error");
+      return;
+    }
+    this.mediaDeleteModal = { type: 'selected', count: fileNames.length };
+    if (this.forceUpdate) this.forceUpdate();
+  },
+
+  async restoreSelectedMedia() {
     try {
       const fileNames = this.selectedMediaFileNames();
       if (!fileNames.length) {
         throw new Error("Select images first.");
       }
-      if (!confirm(`Delete ${fileNames.length} selected image(s)? This cannot be undone.`)) {
-        return;
-      }
 
       const failed = [];
-      let deleted = 0;
+      let restored = 0;
       for (const fileName of fileNames) {
         try {
-          await this.deleteMediaByFileName(fileName);
-          deleted += 1;
+          await this.apiRequest(`/admin/media/${encodeURIComponent(fileName)}/restore`, {
+            method: "POST"
+          });
+          restored += 1;
         } catch {
           failed.push(fileName);
         }
       }
 
-      if (deleted) {
-        this.notify(`${deleted} selected image(s) deleted.`, "success");
+      if (restored) {
+        this.notify(`${restored} selected image(s) restored.`, "success");
       }
       if (failed.length) {
-        this.notify(`Failed to delete ${failed.length} image(s).`, "error");
+        this.notify(`Failed to restore ${failed.length} image(s).`, "error");
       }
+      this.clearMediaSelection();
       await this.loadMedia();
     } catch (error) {
       this.notify(this.errorMessage(error), "error");
@@ -1063,39 +1164,15 @@ export const adminMethods = {
   },
 
   async deleteAllMedia() {
-    try {
-      const fileNames = this.mediaAssets
-        .map((item) => String(item?.fileName || "").trim())
-        .filter(Boolean);
-      if (!fileNames.length) {
-        throw new Error("No images found.");
-      }
-      if (!confirm(`Delete ALL ${fileNames.length} loaded image(s)? This cannot be undone.`)) {
-        return;
-      }
-
-      const failed = [];
-      let deleted = 0;
-      for (const fileName of fileNames) {
-        try {
-          await this.deleteMediaByFileName(fileName);
-          deleted += 1;
-        } catch {
-          failed.push(fileName);
-        }
-      }
-
-      this.clearMediaSelection();
-      if (deleted) {
-        this.notify(`${deleted} image(s) deleted.`, "success");
-      }
-      if (failed.length) {
-        this.notify(`Failed to delete ${failed.length} image(s).`, "error");
-      }
-      await this.loadMedia();
-    } catch (error) {
-      this.notify(this.errorMessage(error), "error");
+    const fileNames = this.mediaAssets
+      .map((item) => String(item?.fileName || "").trim())
+      .filter(Boolean);
+    if (!fileNames.length) {
+      this.notify("No images found.", "error");
+      return;
     }
+    this.mediaDeleteModal = { type: 'all', count: fileNames.length };
+    if (this.forceUpdate) this.forceUpdate();
   },
 
   filteredEmailMediaAssets() {
@@ -2383,6 +2460,118 @@ export const adminMethods = {
     this.notify("Subscriber CSV downloaded.", "success");
   },
 
+  importSubscribersCsv() {
+    // Create a hidden file input and trigger it
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,text/csv,text/plain';
+    input.onchange = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const csrf = await this.fetchCsrfToken();
+        const headers = { 'Content-Type': 'text/plain' };
+        if (csrf) headers['x-csrf-token'] = csrf;
+
+        const response = await fetch(this.withBaseUrl('/admin/subscribers/import'), {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: text
+        });
+        this.persistRenewedAccessToken(response);
+        const result = await this.readPayload(response);
+        if (!response.ok) throw new Error(result?.message || 'Import failed.');
+        this.notify(`Imported ${result.inserted} subscriber(s). Skipped: ${result.skipped}.`, 'success');
+        await this.loadSubscribers(true);
+      } catch (err) {
+        this.notify(this.errorMessage(err), 'error');
+      }
+    };
+    input.click();
+  },
+
+  async loadSubscribers(force) {
+    try {
+      const search = String(this.subscriberFilters?.search || '').trim();
+      const isActive = this.subscriberFilters?.isActive || '';
+      const params = new URLSearchParams({ limit: 200, search });
+      if (isActive !== '') params.set('isActive', isActive);
+      const res = await this.apiRequest(`/admin/subscribers?${params.toString()}`);
+      let items = res.items || [];
+      if (search) {
+        items = items.filter(s =>
+          (s.email || '').toLowerCase().includes(search.toLowerCase()) ||
+          (s.name || '').toLowerCase().includes(search.toLowerCase())
+        );
+      }
+      if (isActive !== '') {
+        const activeFlag = isActive === 'true';
+        items = items.filter(s => Boolean(s.isActive) === activeFlag);
+      }
+      this.subscribers = items.map(s => ({
+        id: String(s._id || s.id || ''),
+        email: s.email || '',
+        name: s.name || '',
+        source: s.source || '',
+        isActive: Boolean(s.isActive),
+        createdAt: s.createdAt || null
+      }));
+      if (force && this.forceUpdate) this.forceUpdate();
+    } catch (err) {
+      this.notify(this.errorMessage(err), 'error');
+    }
+  },
+
+  async createSubscriber() {
+    try {
+      const email = String(this.subscriberDraft?.email || '').trim();
+      if (!email) {
+        this.notify('Email address is required.', 'error');
+        return;
+      }
+      const body = {
+        email,
+        name: String(this.subscriberDraft?.name || '').trim(),
+        source: String(this.subscriberDraft?.source || 'manual'),
+        isActive: Boolean(this.subscriberDraft?.isActive !== false)
+      };
+      await this.apiRequest('/admin/subscribers', { method: 'POST', body: JSON.stringify(body) });
+      this.notify('Subscriber added.', 'success');
+      // Reset the draft
+      this.subscriberDraft = { email: '', name: '', source: 'manual', isActive: true };
+      await this.loadSubscribers(true);
+    } catch (err) {
+      this.notify(this.errorMessage(err), 'error');
+    }
+  },
+
+  async toggleSubscriber(subscriber) {
+    try {
+      const id = String(subscriber?.id || subscriber?._id || '');
+      if (!id) return;
+      await this.apiRequest(`/admin/subscribers/${id}/toggle`, { method: 'PATCH' });
+      await this.loadSubscribers(true);
+    } catch (err) {
+      this.notify(this.errorMessage(err), 'error');
+    }
+  },
+
+  async deleteSubscriber(subscriber) {
+    try {
+      const id = String(subscriber?.id || subscriber?._id || '');
+      const label = subscriber?.email || id;
+      if (!id) return;
+      if (!confirm(`Delete subscriber "${label}"? This cannot be undone.`)) return;
+      await this.apiRequest(`/admin/subscribers/${id}`, { method: 'DELETE' });
+      this.notify('Subscriber deleted.', 'success');
+      await this.loadSubscribers(true);
+    } catch (err) {
+      this.notify(this.errorMessage(err), 'error');
+    }
+  },
+
   campaignTemplateRef(template) {
     if (!template || typeof template !== "object") {
       return "";
@@ -3108,7 +3297,8 @@ export const adminMethods = {
     };
     this.productMediaPicker.open = false;
     this.productMediaPicker.search = "";
-    this.productModal.open = true;
+    this.productModal.open = true; // Still keep open flag for potential use, but we switch tab
+    this.setActiveTab("product-form");
     void this.ensureMediaLoadedForProduct();
     this.refreshIcons();
   },
@@ -3163,7 +3353,8 @@ export const adminMethods = {
     };
     this.productMediaPicker.open = false;
     this.productMediaPicker.search = "";
-    this.productModal.open = true;
+    this.productModal.open = true; // Still keep open flag
+    this.setActiveTab("product-form");
     await this.ensureMediaLoadedForProduct();
     this.refreshIcons();
   },
@@ -3173,6 +3364,7 @@ export const adminMethods = {
     this.productModal.saving = false;
     this.productMediaPicker.open = false;
     this.productMediaPicker.search = "";
+    this.setActiveTab("inventory");
   },
 
   parseCsv(value) {
@@ -3311,42 +3503,38 @@ export const adminMethods = {
 
   async deleteProduct(item, options = {}) {
     const skipConfirm = Boolean(options.skipConfirm);
-    const skipReload = Boolean(options.skipReload);
-    const silent = Boolean(options.silent);
-    const rethrow = Boolean(options.rethrow);
+    const identifier = this.productIdentifier(item);
+    if (!identifier) {
+      if (!options.silent) this.notify("Product identifier missing. Reload inventory and try again.", "error");
+      if (options.rethrow) throw new Error("Product identifier missing");
+      return;
+    }
+
+    if (skipConfirm) {
+      // Execute the delete immediately
+      await this.executeInventoryDelete({ type: 'single', item, skipConfirm: true, skipReload: options.skipReload, silent: options.silent, rethrow: options.rethrow });
+      return;
+    }
+
+    this.inventoryDeleteModal = { type: 'single', item };
+    if (this.forceUpdate) this.forceUpdate();
+  },
+
+  async hardDeleteProduct(identifier) {
+    if (!identifier) return;
+    await this.apiRequest(`/admin/products/${encodeURIComponent(identifier)}/hard`, { method: "DELETE" });
+  },
+
+  async restoreProduct(item) {
     try {
       const identifier = this.productIdentifier(item);
-      if (!identifier) {
-        const message = "Product identifier missing. Reload inventory and try again.";
-        if (!silent) {
-          this.notify(message, "error");
-        }
-        if (rethrow) {
-          throw new Error(message);
-        }
-        return;
-      }
-      const label = String(item?.title || identifier).trim();
-      if (!skipConfirm && !confirm(`Delete product "${label}"?`)) {
-        return;
-      }
-      await this.apiRequest(`/admin/products/${encodeURIComponent(identifier)}`, { method: "DELETE" });
-      delete this.inventorySelection[identifier];
-      this.inventorySelection = { ...this.inventorySelection };
-      if (!skipReload) {
-        await this.loadInventory();
-      }
+      if (!identifier) return;
+      await this.apiRequest(`/admin/products/${encodeURIComponent(identifier)}/restore`, { method: "POST" });
+      this.notify("Product restored.", "success");
+      await this.loadInventory();
       this.loadedTabs.dashboard = false;
-      if (!silent) {
-        this.notify("Product removed.", "success");
-      }
     } catch (error) {
-      if (!silent) {
-        this.notify(this.errorMessage(error), "error");
-      }
-      if (rethrow) {
-        throw error;
-      }
+      this.notify(this.errorMessage(error), "error");
     }
   },
 
@@ -3356,47 +3544,79 @@ export const adminMethods = {
       this.notify("Select at least one product.");
       return;
     }
-    if (!confirm(`Delete ${selectedIds.length} selected product(s)? This cannot be undone.`)) {
-      return;
-    }
 
-    this.inventoryDeleting = true;
-    let deleted = 0;
-    let failed = 0;
+    this.inventoryDeleteModal = { type: 'selected', count: selectedIds.length, selectedIds };
+    if (this.forceUpdate) this.forceUpdate();
+  },
+
+  async executeInventoryDelete(modalData) {
+    this.inventoryDeleteModal = null;
+    if (this.forceUpdate) this.forceUpdate();
+
+    const skipReload = Boolean(modalData.skipReload);
+    const silent = Boolean(modalData.silent);
+    const rethrow = Boolean(modalData.rethrow);
 
     try {
-      for (const productId of selectedIds) {
-        const targetProduct = this.inventory.find((item) => String(this.productIdentifier(item)) === String(productId));
-        try {
-          await this.deleteProduct(targetProduct || { id: productId, title: productId }, {
-            skipConfirm: true,
-            skipReload: true,
-            silent: true,
-            rethrow: true
-          });
-          deleted += 1;
-        } catch (error) {
-          failed += 1;
-          if (this.localSettings.debug) {
-            console.error("Failed to delete product", productId, error);
+      if (modalData.type === 'single') {
+        const identifier = this.productIdentifier(modalData.item);
+        if (this.inventoryTrashMode) {
+          await this.hardDeleteProduct(identifier);
+        } else {
+          await this.apiRequest(`/admin/products/${encodeURIComponent(identifier)}`, { method: "DELETE" });
+        }
+
+        delete this.inventorySelection[identifier];
+        this.inventorySelection = { ...this.inventorySelection };
+
+        if (!silent) {
+          this.notify(this.inventoryTrashMode ? "Product permanently deleted." : "Product moved to trash.", "success");
+        }
+
+      } else if (modalData.type === 'selected') {
+        this.inventoryDeleting = true;
+        let deleted = 0;
+        let failed = 0;
+        const selectedIds = modalData.selectedIds || this.selectedInventoryIds();
+
+        for (const productId of selectedIds) {
+          try {
+            if (this.inventoryTrashMode) {
+              await this.hardDeleteProduct(productId);
+            } else {
+              await this.apiRequest(`/admin/products/${encodeURIComponent(productId)}`, { method: "DELETE" });
+            }
+            deleted += 1;
+            delete this.inventorySelection[productId];
+          } catch (error) {
+            failed += 1;
           }
+        }
+
+        this.inventorySelection = { ...this.inventorySelection };
+
+        if (deleted && !failed) {
+          this.notify(this.inventoryTrashMode ? `Permanently deleted ${deleted} product(s).` : `Moved ${deleted} product(s) to trash.`, "success");
+        } else if (deleted && failed) {
+          this.notify(`Deleted ${deleted} product(s). Failed: ${failed}.`, "info");
+        } else {
+          this.notify("Failed to delete selected products.", "error");
         }
       }
 
-      await this.loadInventory();
+      if (!skipReload) {
+        await this.loadInventory();
+      }
+      this.loadedTabs.dashboard = false;
+
+    } catch (error) {
+      if (!silent) {
+        this.notify(this.errorMessage(error), "error");
+      }
+      if (rethrow) throw error;
     } finally {
       this.inventoryDeleting = false;
     }
-
-    if (deleted && !failed) {
-      this.notify(`Deleted ${deleted} product(s).`, "success");
-      return;
-    }
-    if (deleted && failed) {
-      this.notify(`Deleted ${deleted} product(s). Failed: ${failed}.`, "info");
-      return;
-    }
-    this.notify("Failed to delete selected products.", "error");
   },
 
   async openAuctionCreate() {

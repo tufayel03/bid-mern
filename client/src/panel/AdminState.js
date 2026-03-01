@@ -55,9 +55,22 @@
     },
     inventorySelection: {},
     inventoryDeleting: false,
+    inventoryTrashMode: false,
+    inventoryDeleteModal: null,
     mediaAssets: [],
+    mediaViewMode: "grid",
+    mediaTrashMode: false,
+    mediaDeleteModal: null,
     mediaFilters: {
-      search: ""
+      search: "",
+      page: 1,
+      limit: 30
+    },
+    mediaMeta: {
+      page: 1,
+      limit: 30,
+      total: 0,
+      totalPages: 1
     },
     mediaSelection: {},
     mediaUpload: {
