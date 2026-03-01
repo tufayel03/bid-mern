@@ -50,6 +50,19 @@ app.use('/api/admin/auctions', require('../routes/auctions'));
 app.use('/api/admin', require('../routes/crm'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, status: 'express-active' }));
+app.get('/api/ready', (req, res) => res.json({ ok: true }));
+
+app.get('/api/metrics', async (req, res) => {
+  try {
+    const Auction = require('../models/Auction');
+    const now = new Date();
+    const liveAuctions = await Auction.countDocuments({ status: 'live', endAt: { $gt: now } });
+    const scheduledAuctions = await Auction.countDocuments({ status: 'scheduled' });
+    res.json({ liveAuctions, scheduledAuctions, ok: true });
+  } catch (err) {
+    res.json({ liveAuctions: 0, scheduledAuctions: 0, ok: false });
+  }
+});
 
 
 app.listen(PORT, () => {

@@ -2,7 +2,7 @@
 
 :root {
   color-scheme: dark;
-  --bg: #05050a;
+  --bg: #000008;
   --bg-soft: #0a0a14;
   --card: #0d0d1a;
   --card-soft: #141426;
@@ -32,16 +32,137 @@ body,
   height: 100%;
 }
 
+#root {
+  position: relative;
+  z-index: 1;
+}
+
 body {
   margin: 0;
   font-family: 'Rajdhani', system-ui, -apple-system, sans-serif;
   color: var(--text);
-  background-color: var(--bg);
+  background-color: #000008;
+  position: relative;
+  isolation: isolate;
+  /* Sparse node dots + dramatic corner halos */
   background-image:
-    linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
-  background-size: 30px 30px;
-  background-position: center top;
+    /* Circuit node dots at intersections */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Ccircle cx='0' cy='0' r='1.2' fill='rgba(0%2C243%2C255%2C0.3)'/%3E%3C/svg%3E"),
+    /* Strong cyan halo — top-left */
+    radial-gradient(ellipse 50% 42% at 0% 0%, rgba(0, 243, 255, 0.18) 0%, rgba(0, 243, 255, 0.05) 45%, transparent 70%),
+    /* Strong magenta halo — bottom-right */
+    radial-gradient(ellipse 48% 42% at 100% 100%, rgba(255, 0, 255, 0.18) 0%, rgba(255, 0, 255, 0.05) 45%, transparent 70%),
+    /* Red halo — top-right */
+    radial-gradient(ellipse 30% 26% at 100% 0%, rgba(255, 0, 50, 0.12) 0%, transparent 65%),
+    /* Cyan halo — bottom-left */
+    radial-gradient(ellipse 28% 24% at 0% 100%, rgba(0, 243, 255, 0.08) 0%, transparent 65%),
+    /* True void center */
+    radial-gradient(ellipse 85% 80% at 50% 50%, #030111 0%, #000008 100%);
+  background-size:
+    80px 80px,
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  background-attachment: fixed;
+}
+
+/* === Neon border glow traces (edges of screen) === */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    /* Top edge — cyan */
+    linear-gradient(to bottom,
+      rgba(0, 243, 255, 0.55) 0px,
+      rgba(0, 243, 255, 0.15) 1px,
+      rgba(0, 243, 255, 0.04) 4px,
+      transparent 18px),
+    /* Left edge — cyan */
+    linear-gradient(to right,
+      rgba(0, 243, 255, 0.4) 0px,
+      rgba(0, 243, 255, 0.1) 1px,
+      rgba(0, 243, 255, 0.03) 4px,
+      transparent 18px),
+    /* Bottom edge — magenta */
+    linear-gradient(to top,
+      rgba(255, 0, 255, 0.5) 0px,
+      rgba(255, 0, 255, 0.12) 1px,
+      rgba(255, 0, 255, 0.03) 4px,
+      transparent 18px),
+    /* Right edge — magenta */
+    linear-gradient(to left,
+      rgba(255, 0, 255, 0.4) 0px,
+      rgba(255, 0, 255, 0.1) 1px,
+      rgba(255, 0, 255, 0.03) 4px,
+      transparent 18px),
+    /* Wide sparse horizontal circuit traces */
+    repeating-linear-gradient(to bottom,
+      transparent 0px, transparent 239px,
+      rgba(0, 243, 255, 0.04) 239px, rgba(0, 243, 255, 0.04) 240px),
+    /* Wide sparse vertical circuit traces */
+    repeating-linear-gradient(to right,
+      transparent 0px, transparent 239px,
+      rgba(255, 0, 255, 0.03) 239px, rgba(255, 0, 255, 0.03) 240px);
+  background-size:
+    100% 100%, 100% 100%, 100% 100%, 100% 100%,
+    100% 240px, 240px 100%;
+  animation: cpBorderPulse 5s ease-in-out infinite;
+}
+
+/* === Film grain + micro scanlines === */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(to bottom,
+      transparent 0px, transparent 3px,
+      rgba(0, 0, 0, 0.12) 3px, rgba(0, 0, 0, 0.12) 4px);
+  opacity: 0.8;
+}
+
+/* === Hard vignette + slow sweeping laser line === */
+#root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 110% 110% at 50% 50%, transparent 38%, rgba(0, 0, 0, 0.88) 100%),
+    linear-gradient(to bottom,
+      transparent 49%,
+      rgba(0, 243, 255, 0.1) 49.5%,
+      rgba(0, 243, 255, 0.22) 50%,
+      rgba(0, 243, 255, 0.1) 50.5%,
+      transparent 51%);
+  background-attachment: fixed;
+  animation: cpSweepLaser 12s cubic-bezier(0.2, 0, 0.8, 1) infinite;
+}
+
+@keyframes cpBorderPulse {
+
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+
+  50% {
+    opacity: 1.0;
+  }
+}
+
+@keyframes cpSweepLaser {
+  0% {
+    background-position: fixed, 0 -120%;
+  }
+
+  65%,
+  100% {
+    background-position: fixed, 0 120%;
+  }
 }
 
 /* Force Monospace for Data */
@@ -1822,13 +1943,11 @@ textarea:focus,
 }
 
 .bg-cyber-scanline {
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    transparent 50%,
-    rgba(0, 0, 0, 0.5) 50%,
-    rgba(0, 0, 0, 0.5)
-  );
+  background: linear-gradient(to bottom,
+      transparent,
+      transparent 50%,
+      rgba(0, 0, 0, 0.5) 50%,
+      rgba(0, 0, 0, 0.5));
   background-size: 100% 4px;
   pointer-events: none;
 }
@@ -1836,14 +1955,17 @@ textarea:focus,
 .custom-scrollbar-heavy::-webkit-scrollbar {
   width: 10px;
 }
+
 .custom-scrollbar-heavy::-webkit-scrollbar-track {
   background: #05050a;
 }
+
 .custom-scrollbar-heavy::-webkit-scrollbar-thumb {
   background: #1f1f3a;
   border: 2px solid #05050a;
   border-radius: 4px;
 }
+
 .custom-scrollbar-heavy::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
   box-shadow: 0 0 10px var(--primary);
@@ -1855,8 +1977,13 @@ textarea:focus,
 }
 
 @keyframes cyber-scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
 }
 
 .cyber-scan-line {
@@ -1871,4 +1998,3 @@ textarea:focus,
   animation: cyber-scan 4s linear infinite;
   pointer-events: none;
 }
-

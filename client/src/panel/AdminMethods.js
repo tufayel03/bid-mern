@@ -512,7 +512,7 @@ export const adminMethods = {
     this.renderRevenueChart();
   },
   async loadDashboard(force = false) {
-    const [metrics, financial, ordersRes, productsRes, subscribersRes, reservationsRes] = await Promise.all([
+    const settled = await Promise.allSettled([
       this.apiRequest("/metrics"),
       this.apiRequest("/admin/financial/summary"),
       this.apiRequest("/admin/orders?page=1&limit=60"),
@@ -520,6 +520,14 @@ export const adminMethods = {
       this.apiRequest("/admin/subscribers?page=1&limit=1"),
       this.apiRequest("/admin/reservations")
     ]);
+
+    const ok = (idx, fallback) => settled[idx].status === 'fulfilled' ? settled[idx].value : fallback;
+    const metrics = ok(0, { liveAuctions: 0, scheduledAuctions: 0 });
+    const financial = ok(1, {});
+    const ordersRes = ok(2, { items: [] });
+    const productsRes = ok(3, { items: [], total: 0 });
+    const subscribersRes = ok(4, { total: 0 });
+    const reservationsRes = ok(5, { active: [] });
 
     const orders = Array.isArray(ordersRes.items) ? ordersRes.items : [];
     const products = Array.isArray(productsRes.items) ? productsRes.items : [];
@@ -1670,7 +1678,7 @@ export const adminMethods = {
       page: this.orderFilters.page,
       limit: this.orderFilters.limit
     });
-    const response = await this.apiRequest(`/orders?${query}`);
+    const response = await this.apiRequest(`/admin/orders?${query}`);
     this.orders = response.items || [];
     this.syncOrderSelection();
     this.ordersMeta = {
@@ -1774,7 +1782,7 @@ export const adminMethods = {
         this.notify("No order changes to save.");
         return;
       }
-      const updated = await this.apiRequest(`/orders/${orderId}/status`, {
+      const updated = await this.apiRequest(`/admin/orders/${orderId}/status`, {
         method: "PATCH",
         body: payload
       });
@@ -1828,7 +1836,7 @@ export const adminMethods = {
     this.orderDetailsModal.order = null;
 
     try {
-      const detail = await this.apiRequest(`/orders/${orderId}`);
+      const detail = await this.apiRequest(`/admin/orders/${orderId}`);
       const shipping = this.normalizeOrderDraftShipping(detail?.shippingAddress || {});
       this.orderDetailsModal.order = detail;
       this.orderDetailsModal.draft = {
@@ -1885,7 +1893,7 @@ export const adminMethods = {
 
     this.orderDetailsModal.saving = true;
     try {
-      const updated = await this.apiRequest(`/orders/${detail.id}/status`, {
+      const updated = await this.apiRequest(`/admin/orders/${detail.id}/status`, {
         method: "PATCH",
         body: payload
       });
@@ -1920,7 +1928,7 @@ export const adminMethods = {
         return;
       }
 
-      await this.apiRequest(`/orders/${orderId}`, {
+      await this.apiRequest(`/admin/orders/${orderId}`, {
         method: "DELETE"
       });
 
@@ -2391,126 +2399,18 @@ export const adminMethods = {
       this.notify(this.errorMessage(error), "error");
     }
   },
-  async loadSubscribers() {
-    const query = this.toQueryString({
-      page: this.subscriberFilters.page,
-      limit: this.subscriberFilters.limit,
-      search: this.subscriberFilters.search,
-      isActive: this.subscriberFilters.isActive
-    });
-    const response = await this.apiRequest(`/admin/subscribers?${query}`);
-    this.subscribers = response.items || [];
-  },
-
-  async createSubscriber() {
-    try {
-      const email = String(this.subscriberDraft.email || "").trim().toLowerCase();
-      if (!email) {
-        throw new Error("Subscriber email is required.");
-      }
-
-      await this.apiRequest("/admin/subscribers", {
-        method: "POST",
-        body: {
-          email,
-          name: String(this.subscriberDraft.name || "").trim() || undefined,
-          source: this.subscriberDraft.source || "manual",
-          isActive: Boolean(this.subscriberDraft.isActive)
-        }
-      });
-
-      this.subscriberDraft = {
-        email: "",
-        name: "",
-        source: "manual",
-        isActive: true
-      };
-      this.notify("Subscriber saved.", "success");
-      await this.loadSubscribers(true);
-    } catch (error) {
-      this.notify(this.errorMessage(error), "error");
-    }
-  },
-
-  async toggleSubscriber(subscriber) {
-    const updated = await this.apiRequest(`/admin/subscribers/${subscriber.id}/toggle`, {
-      method: "PATCH"
-    });
-    subscriber.isActive = updated.isActive;
-    this.notify(`Subscriber ${subscriber.email} updated.`, "success");
-  },
-
-  async deleteSubscriber(subscriber) {
-    if (!confirm(`Delete subscriber ${subscriber.email}?`)) return;
-    await this.apiRequest(`/admin/subscribers/${subscriber.id}`, { method: "DELETE" });
-    this.notify("Subscriber deleted.", "success");
-    await this.loadSubscribers();
-  },
-
-  async exportSubscribersCsv() {
-    const response = await fetch(this.withBaseUrl("/admin/subscribers/export"), {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store"
-    });
-    this.persistRenewedAccessToken(response);
-    if (!response.ok) throw new Error("Failed to export subscribers.");
-    const blob = await response.blob();
-    this.downloadBlob(blob, `subscribers-${this.todayFileDate()}.csv`);
-    this.notify("Subscriber CSV downloaded.", "success");
-  },
-
-  importSubscribersCsv() {
-    // Create a hidden file input and trigger it
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv,text/csv,text/plain';
-    input.onchange = async (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-      try {
-        const text = await file.text();
-        const csrf = await this.fetchCsrfToken();
-        const headers = { 'Content-Type': 'text/plain' };
-        if (csrf) headers['x-csrf-token'] = csrf;
-
-        const response = await fetch(this.withBaseUrl('/admin/subscribers/import'), {
-          method: 'POST',
-          credentials: 'include',
-          headers,
-          body: text
-        });
-        this.persistRenewedAccessToken(response);
-        const result = await this.readPayload(response);
-        if (!response.ok) throw new Error(result?.message || 'Import failed.');
-        this.notify(`Imported ${result.inserted} subscriber(s). Skipped: ${result.skipped}.`, 'success');
-        await this.loadSubscribers(true);
-      } catch (err) {
-        this.notify(this.errorMessage(err), 'error');
-      }
-    };
-    input.click();
-  },
-
   async loadSubscribers(force) {
     try {
       const search = String(this.subscriberFilters?.search || '').trim();
       const isActive = this.subscriberFilters?.isActive || '';
-      const params = new URLSearchParams({ limit: 200, search });
-      if (isActive !== '') params.set('isActive', isActive);
-      const res = await this.apiRequest(`/admin/subscribers?${params.toString()}`);
-      let items = res.items || [];
-      if (search) {
-        items = items.filter(s =>
-          (s.email || '').toLowerCase().includes(search.toLowerCase()) ||
-          (s.name || '').toLowerCase().includes(search.toLowerCase())
-        );
-      }
-      if (isActive !== '') {
-        const activeFlag = isActive === 'true';
-        items = items.filter(s => Boolean(s.isActive) === activeFlag);
-      }
-      this.subscribers = items.map(s => ({
+      const params = this.toQueryString({
+        page: this.subscriberFilters?.page || 1,
+        limit: this.subscriberFilters?.limit || 50,
+        search: search || undefined,
+        isActive: isActive || undefined
+      });
+      const response = await this.apiRequest(`/admin/subscribers?${params}`);
+      this.subscribers = (response.items || []).map(s => ({
         id: String(s._id || s.id || ''),
         email: s.email || '',
         name: s.name || '',
@@ -2518,7 +2418,6 @@ export const adminMethods = {
         isActive: Boolean(s.isActive),
         createdAt: s.createdAt || null
       }));
-      if (force && this.forceUpdate) this.forceUpdate();
     } catch (err) {
       this.notify(this.errorMessage(err), 'error');
     }
@@ -2526,24 +2425,25 @@ export const adminMethods = {
 
   async createSubscriber() {
     try {
-      const email = String(this.subscriberDraft?.email || '').trim();
+      const email = String(this.subscriberDraft?.email || '').trim().toLowerCase();
       if (!email) {
         this.notify('Email address is required.', 'error');
         return;
       }
-      const body = {
-        email,
-        name: String(this.subscriberDraft?.name || '').trim(),
-        source: String(this.subscriberDraft?.source || 'manual'),
-        isActive: Boolean(this.subscriberDraft?.isActive !== false)
-      };
-      await this.apiRequest('/admin/subscribers', { method: 'POST', body: JSON.stringify(body) });
-      this.notify('Subscriber added.', 'success');
-      // Reset the draft
+      await this.apiRequest('/admin/subscribers', {
+        method: 'POST',
+        body: {
+          email,
+          name: String(this.subscriberDraft?.name || '').trim() || undefined,
+          source: this.subscriberDraft?.source || 'manual',
+          isActive: Boolean(this.subscriberDraft?.isActive !== false)
+        }
+      });
       this.subscriberDraft = { email: '', name: '', source: 'manual', isActive: true };
-      await this.loadSubscribers(true);
-    } catch (err) {
-      this.notify(this.errorMessage(err), 'error');
+      this.notify('Subscriber saved.', 'success');
+      await this.loadSubscribers();
+    } catch (error) {
+      this.notify(this.errorMessage(error), 'error');
     }
   },
 
@@ -2551,10 +2451,12 @@ export const adminMethods = {
     try {
       const id = String(subscriber?.id || subscriber?._id || '');
       if (!id) return;
-      await this.apiRequest(`/admin/subscribers/${id}/toggle`, { method: 'PATCH' });
-      await this.loadSubscribers(true);
-    } catch (err) {
-      this.notify(this.errorMessage(err), 'error');
+      const updated = await this.apiRequest(`/admin/subscribers/${id}/toggle`, { method: 'PATCH' });
+      subscriber.isActive = updated.isActive;
+      this.notify(`Subscriber ${subscriber.email} updated.`, 'success');
+      await this.loadSubscribers();
+    } catch (error) {
+      this.notify(this.errorMessage(error), 'error');
     }
   },
 
@@ -2566,9 +2468,9 @@ export const adminMethods = {
       if (!confirm(`Delete subscriber "${label}"? This cannot be undone.`)) return;
       await this.apiRequest(`/admin/subscribers/${id}`, { method: 'DELETE' });
       this.notify('Subscriber deleted.', 'success');
-      await this.loadSubscribers(true);
-    } catch (err) {
-      this.notify(this.errorMessage(err), 'error');
+      await this.loadSubscribers();
+    } catch (error) {
+      this.notify(this.errorMessage(error), 'error');
     }
   },
 
@@ -2781,14 +2683,7 @@ export const adminMethods = {
   },
 
   async loadReports() {
-    const [
-      financial,
-      walletsRes,
-      reservations,
-      disputesRes,
-      health,
-      ready
-    ] = await Promise.all([
+    const settled = await Promise.allSettled([
       this.apiRequest("/admin/financial/summary"),
       this.apiRequest("/admin/wallets?page=1&limit=20"),
       this.apiRequest("/admin/reservations"),
@@ -2797,13 +2692,19 @@ export const adminMethods = {
         limit: 50,
         status: this.disputeFilters.status
       })}`),
-      this.apiRequest("/health").catch(() => ({ ok: false })),
-      this.apiRequest("/ready").catch(() => ({ ok: false }))
+      this.apiRequest("/health"),
+      this.apiRequest("/ready")
     ]);
-    this.financialSummary = {
-      ...this.financialSummary,
-      ...financial
-    };
+
+    const ok = (idx, fallback) => settled[idx].status === 'fulfilled' ? settled[idx].value : fallback;
+    const financial = ok(0, {});
+    const walletsRes = ok(1, { items: [] });
+    const reservations = ok(2, { active: [], expired: [], consumed: [] });
+    const disputesRes = ok(3, { items: [] });
+    const health = ok(4, { ok: false });
+    const ready = ok(5, { ok: false });
+
+    this.financialSummary = { ...this.financialSummary, ...financial };
     this.wallets = walletsRes.items || [];
     this.disputes = disputesRes.items || [];
     this.disputeDrafts = {};
@@ -2977,11 +2878,16 @@ export const adminMethods = {
 
   async loadSettings() {
     this.ensureCourierSettings();
-    const [templateResponse, smtpResponse, courierResponse] = await Promise.all([
+    const settled = await Promise.allSettled([
       this.apiRequest("/admin/email-templates"),
       this.apiRequest("/admin/email-templates/transport/smtp"),
       this.apiRequest("/admin/courier/steadfast/settings")
     ]);
+
+    const ok = (idx, fallback) => settled[idx].status === 'fulfilled' ? settled[idx].value : fallback;
+    const templateResponse = ok(0, { items: [] });
+    const smtpResponse = ok(1, {});
+    const courierResponse = ok(2, {});
 
     const items = templateResponse.items || [];
     this.templateKeys = items.map((item) => item.key);
@@ -2989,7 +2895,7 @@ export const adminMethods = {
       this.templateEditor.selectedKey = this.templateKeys[0];
     }
     if (this.templateEditor.selectedKey) {
-      await this.selectTemplate(this.templateEditor.selectedKey);
+      await this.selectTemplate(this.templateEditor.selectedKey).catch(() => { });
     }
 
     const testEmail = this.smtpSettings.testEmail || "";

@@ -47,6 +47,9 @@ router.patch('/:id/status', async (req, res) => {
         if (req.body.paymentStatus) update.paymentStatus = req.body.paymentStatus;
         if (req.body.fulfillmentStatus) update.fulfillmentStatus = req.body.fulfillmentStatus;
         if (req.body.customerNote !== undefined) update.customerNote = req.body.customerNote;
+        if (req.body.shippingAddress && typeof req.body.shippingAddress === 'object') {
+            update.shippingAddress = req.body.shippingAddress;
+        }
 
         const order = await Order.findByIdAndUpdate(req.params.id, update, { new: true });
         if (!order) return res.status(404).json({ message: 'Order not found' });

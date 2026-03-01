@@ -76,4 +76,65 @@ router.put('/:id', async (req, res) => {
     }
 });
 
+router.get('/:id', async (req, res) => {
+    try {
+        // Allow lookup by productId (slug or ObjectId) as well as auction _id
+        let auction = null;
+        if (/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
+            auction = await Auction.findById(req.params.id).populate('productId', 'title images slug');
+            if (!auction) {
+                // Maybe it's a productId
+                auction = await Auction.findOne({ productId: req.params.id }).populate('productId', 'title images slug');
+            }
+        }
+        if (!auction) {
+            // Try finding by product slug
+            const product = await Product.findOne({ slug: req.params.id });
+            if (product) {
+                auction = await Auction.findOne({ productId: product._id }).populate('productId', 'title images slug');
+            }
+        }
+        if (!auction) return res.status(404).json({ message: 'Auction not found' });
+
+        const doc = auction.toObject();
+        doc.product = doc.productId ? {
+            id: doc.productId._id,
+            slug: doc.productId.slug,
+            title: doc.productId.title,
+            image: doc.productId.images?.[0] || ''
+        } : null;
+        const now = Date.now();
+        doc.timeLeftMs = Math.max(0, new Date(doc.endAt).getTime() - now);
+        res.json(doc);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.patch('/:id', async (req, res) => {
+    try {
+        const allowedFields = ['status', 'startAt', 'endAt', 'startingPrice', 'reservePrice', 'minIncrement'];
+        const update = {};
+        allowedFields.forEach(f => { if (req.body[f] !== undefined) update[f] = req.body[f]; });
+
+        let auction = null;
+        if (/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
+            auction = await Auction.findByIdAndUpdate(req.params.id, update, { new: true });
+            if (!auction) {
+                auction = await Auction.findOneAndUpdate({ productId: req.params.id }, update, { new: true });
+            }
+        }
+        if (!auction) {
+            const product = await Product.findOne({ slug: req.params.id });
+            if (product) {
+                auction = await Auction.findOneAndUpdate({ productId: product._id }, update, { new: true });
+            }
+        }
+        if (!auction) return res.status(404).json({ message: 'Auction not found' });
+        res.json(auction);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+});
+
 module.exports = router;
