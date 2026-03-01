@@ -23,8 +23,8 @@ function createAdminStore(onChange) {
 
     function makeProxy(target) {
         if (target === null || typeof target !== 'object') return target;
-        // Do not proxy promises, dates, or DOM nodes
-        if (target instanceof Promise || target instanceof Date || target instanceof Element || target instanceof Function) {
+        // Do not proxy promises, dates, DOM nodes, or Blobs (Files)
+        if (target instanceof Promise || target instanceof Date || target instanceof Element || target instanceof Blob || target instanceof Function) {
             return target;
         }
 

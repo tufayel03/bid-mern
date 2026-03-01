@@ -916,9 +916,11 @@ export const adminMethods = {
     return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
   },
 
-  onMediaFileChange(event) {
+  async onMediaFileChange(event) {
     const files = Array.from(event?.target?.files || []);
+    if (!files.length) return;
     this.mediaUpload.files = files;
+    await this.uploadSelectedMedia();
   },
 
   async uploadSingleMediaFile(file) {

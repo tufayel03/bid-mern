@@ -80,17 +80,41 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
     try {
-        const media = await Media.findById(req.params.id);
-        if (!media) return res.status(404).json({ message: 'Media not found' });
+        const { id } = req.params;
+        let media;
 
-        const filePath = path.join(__dirname, '..', '..', 'shared', media.url);
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        // Try finding by ObjectId first if it looks like one
+        const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+        if (isObjectId) {
+            media = await Media.findById(id);
         }
 
-        await Media.findByIdAndDelete(req.params.id);
+        // If not found by ID (or not an ID), try finding by fileName
+        if (!media) {
+            media = await Media.findOne({ fileName: id });
+        }
+
+        if (!media) {
+            return res.status(404).json({ message: 'Media not found' });
+        }
+
+        // Resolve file path safely
+        // item.url usually looks like /uploads/media/filename.ext
+        const urlPath = media.url.startsWith('/') ? media.url : `/${media.url}`;
+        const filePath = path.join(__dirname, '..', '..', 'shared', urlPath);
+
+        if (fs.existsSync(filePath)) {
+            try {
+                fs.unlinkSync(filePath);
+            } catch (unlinkErr) {
+                console.error(`Failed to delete file: ${filePath}`, unlinkErr);
+            }
+        }
+
+        await Media.deleteOne({ _id: media._id });
         res.json({ ok: true });
     } catch (err) {
+        console.error('Delete media error:', err);
         res.status(500).json({ message: err.message });
     }
 });

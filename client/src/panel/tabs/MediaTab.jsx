@@ -20,7 +20,7 @@ export function MediaTab() {
             </div>
 
             <div className="admin-card">
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: '12px', alignItems: 'end' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px', alignItems: 'center' }}>
                     <div>
                         <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--primary)', display: 'block', marginBottom: '8px', fontWeight: 700 }}>Upload Images</label>
                         <div className="relative cursor-pointer w-full group" style={{ border: '1px dashed var(--primary)', background: 'rgba(0, 243, 255, 0.05)', padding: '16px', borderRadius: '4px', textAlign: 'center', transition: 'all 0.2s', boxShadow: 'inset 0 0 10px rgba(0, 243, 255, 0.1)' }}>
@@ -34,19 +34,14 @@ export function MediaTab() {
                             />
                             <div className="pointer-events-none" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                 <span style={{ fontWeight: 700, letterSpacing: '0.1em', color: '#00f3ff', textTransform: 'uppercase', fontSize: '14px', textShadow: '0 0 8px rgba(0, 243, 255, 0.6)' }}>
-                                    {mediaUpload.files.length ? `${mediaUpload.files.length} DATA_MODULE(S) READY` : 'SELECT DIGITAL ASSETS'}
+                                    {mediaUpload.uploading ? 'UPLOADING DATA...' : 'SELECT DIGITAL ASSETS'}
                                 </span>
-                                <span style={{ color: '#8fa0be', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Drag & drop or Click to browse</span>
+                                <span style={{ color: '#8fa0be', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    {mediaUpload.uploading ? 'Please wait while asset is being stored' : 'Drag & drop or Click to browse'}
+                                </span>
                             </div>
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => admin.uploadSelectedMedia && admin.uploadSelectedMedia()}
-                        className="primary-btn"
-                    >
-                        {mediaUpload.uploading ? 'UPLOADING...' : 'UPLOAD DATA'}
-                    </button>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px', marginTop: '16px' }}>
@@ -85,9 +80,9 @@ export function MediaTab() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-                {filtered.map((item) => (
+                {filtered.map((item, index) => (
                     <div
-                        key={item.id}
+                        key={item.id || item.fileName || index}
                         className="admin-card no-pad"
                         style={{ border: (admin.isMediaSelected && admin.isMediaSelected(item)) ? '1px solid #3b82f6' : '1px solid rgba(53, 57, 71, 0.65)' }}
                     >
