@@ -1,154 +1,128 @@
-import React from "react";
+import React, { useEffect, useState } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { AdminProvider, useAdmin } from '../panel/AdminContext';
+import { AdminSidebar } from '../panel/components/AdminSidebar';
+import { AdminTopbar } from '../panel/components/AdminTopbar';
+import { DashboardTab } from '../panel/tabs/DashboardTab';
+import { InventoryTab } from '../panel/tabs/InventoryTab';
+import { MediaTab } from '../panel/tabs/MediaTab';
+import { AuctionsTab } from '../panel/tabs/AuctionsTab';
+import { OrdersTab } from '../panel/tabs/OrdersTab';
+import { AnalyticsTab } from '../panel/tabs/AnalyticsTab';
+import { SettingsTab } from '../panel/tabs/SettingsTab';
+import { UsersTab } from '../panel/tabs/UsersTab';
+import { SubscribersTab } from '../panel/tabs/SubscribersTab';
+import { CampaignsTab } from '../panel/tabs/CampaignsTab';
+import { CouponsTab } from '../panel/tabs/CouponsTab';
+import { ReportsTab } from '../panel/tabs/ReportsTab';
+import { AdminModals } from '../panel/components/modals/AdminModals';
 
-import adminTemplateHtml from "../panel/admin-template.html?raw";
-import "../panel/admin-panel.state.js";
-import "../panel/admin-panel.methods.js";
-import "../panel/admin-panel.js";
+function AdminLayout() {
+  const admin = useAdmin();
+  const [isLoaded, setIsLoaded] = useState(false);
 
-const EXTERNAL_SCRIPT_SOURCES = [
-  "https://cdn.tailwindcss.com",
-  "https://unpkg.com/lucide@latest",
-  "https://cdn.jsdelivr.net/npm/chart.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js",
-  "https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"
-];
-
-function parseTemplate(html) {
-  const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
-  const bodyOpenMatch = html.match(/<body([^>]*)>/i);
-  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-
-  const styleText = styleMatch ? styleMatch[1] : "";
-  const bodyAttributes = bodyOpenMatch ? bodyOpenMatch[1].trim() : "";
-  const bodyInner = bodyMatch ? bodyMatch[1].replace(/<script[\s\S]*?<\/script>/gi, "") : "";
-
-  return {
-    styleText,
-    markup: `<div ${bodyAttributes}>${bodyInner}</div>`
-  };
-}
-
-const parsedTemplate = parseTemplate(adminTemplateHtml);
-
-function ensureStyle(id, cssText) {
-  let node = document.getElementById(id);
-  if (!node) {
-    node = document.createElement("style");
-    node.id = id;
-    document.head.appendChild(node);
-  }
-  node.textContent = cssText;
-}
-
-function loadScriptOnce(src) {
-  return new Promise((resolve, reject) => {
-    const selector = `script[data-admin-external="${src}"]`;
-    const existing = document.querySelector(selector);
-    if (existing) {
-      if (existing.dataset.loaded === "true") {
-        resolve();
-        return;
-      }
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error(`Failed to load script: ${src}`)), { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = false;
-    script.dataset.adminExternal = src;
-    script.onload = () => {
-      script.dataset.loaded = "true";
-      resolve();
+  useEffect(() => {
+    // Inject required styles dynamically just for the admin panel if needed
+    const loadStyles = () => {
+      // Assuming global styles are already sufficient, but we can add specific ones here if needed based on the original template
+      // For example, Google Fonts are usually in index.html, so we rely on that.
     };
-    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-    document.body.appendChild(script);
-  });
-}
+    loadStyles();
 
-function applyBodyTheme() {
-  const prev = {
-    overflow: document.body.style.overflow,
-    height: document.body.style.height,
-    backgroundColor: document.body.style.backgroundColor,
-    color: document.body.style.color,
-    fontFamily: document.body.style.fontFamily
-  };
-
-  document.body.style.overflow = "hidden";
-  document.body.style.height = "100vh";
-  document.body.style.backgroundColor = "#09090b";
-  document.body.style.color = "#e4e4e7";
-  document.body.style.fontFamily = "Inter, sans-serif";
-
-  return () => {
-    document.body.style.overflow = prev.overflow;
-    document.body.style.height = prev.height;
-    document.body.style.backgroundColor = prev.backgroundColor;
-    document.body.style.color = prev.color;
-    document.body.style.fontFamily = prev.fontFamily;
-  };
-}
-
-export function AdminPanelExactPage() {
-  const mountRef = React.useRef(null);
-  const [error, setError] = React.useState("");
-
-  React.useEffect(() => {
-    let cancelled = false;
-    const mount = mountRef.current;
-    if (!mount) return undefined;
-
-    const restoreBody = applyBodyTheme();
-    ensureStyle("admin-template-style", parsedTemplate.styleText);
-    mount.innerHTML = parsedTemplate.markup;
-
-    const boot = async () => {
-      try {
-        setError("");
-        for (const src of EXTERNAL_SCRIPT_SOURCES) {
-          await loadScriptOnce(src);
-        }
-        if (cancelled || !mountRef.current) return;
-
-        const alpineRoot = mountRef.current.firstElementChild || mountRef.current;
-        if (window.Alpine) {
-          if (!window.__bidnstealAlpineStarted) {
-            window.__bidnstealAlpineStarted = true;
-            window.Alpine.start();
-          } else if (typeof window.Alpine.initTree === "function") {
-            window.Alpine.initTree(alpineRoot);
-          }
-        }
-        if (window.lucide?.createIcons) {
-          window.lucide.createIcons();
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err?.message || "Failed to initialize admin panel");
-        }
+    // Small delay to ensure state is ready before rendering content
+    setTimeout(() => {
+      setIsLoaded(true);
+      if (admin.initPanel) {
+        admin.initPanel();
       }
-    };
-
-    boot();
+    }, 100);
 
     return () => {
-      cancelled = true;
-      mount.innerHTML = "";
-      restoreBody();
+      // Cleanup if necessary
     };
   }, []);
 
-  return (
-    <div style={{ width: "100%", height: "100vh" }}>
-      {error ? (
-        <div style={{ color: "#fecaca", background: "#7f1d1d66", border: "1px solid #7f1d1d", padding: "10px 12px" }}>
-          {error}
+  if (!isLoaded) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-950 text-zinc-100 font-sans">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+          <p className="mt-4 text-sm text-zinc-400">Loading Control Panel...</p>
         </div>
-      ) : null}
-      <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
+      </div>
+    );
+  }
+
+  const renderActiveTab = () => {
+    switch (admin.activeTab) {
+      case 'dashboard':
+        return <DashboardTab />;
+      case 'inventory':
+      case 'products':
+        return <InventoryTab />;
+      case 'media':
+        return <MediaTab />;
+      case 'auctions':
+        return <AuctionsTab />;
+      case 'orders':
+        return <OrdersTab />;
+      case 'analytics':
+        return <AnalyticsTab />;
+      case 'settings':
+        return <SettingsTab />;
+      case 'users':
+      case 'customers':
+        return <UsersTab />;
+      case 'subscribers':
+        return <SubscribersTab />;
+      case 'campaigns':
+      case 'marketing':
+        return <CampaignsTab />;
+      case 'coupons':
+      case 'discounts':
+        return <CouponsTab />;
+      case 'reports':
+        return <ReportsTab />;
+      default:
+        // Fallback for not-yet-implemented tabs
+        return (
+          <div className="flex h-64 items-center justify-center border-2 border-dashed border-zinc-800 rounded-xl">
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-zinc-400">{admin.activeTab}</h3>
+              <p className="text-sm text-zinc-600 mt-2">This module is under construction in the new React architecture.</p>
+            </div>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className={`admin-layout ${admin.localSettings?.sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <AdminSidebar />
+      <div className="admin-main">
+        <AdminTopbar />
+
+        <main className="admin-content custom-scrollbar">
+          {renderActiveTab()}
+        </main>
+      </div>
+
+      <AdminModals />
     </div>
   );
 }
 
+export function AdminPanelExactPage() {
+  return (
+    <>
+      <Helmet>
+        <title>Control Panel | BidnSteal</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
+
+      <AdminProvider>
+        <AdminLayout />
+      </AdminProvider>
+    </>
+  );
+}

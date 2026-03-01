@@ -31,3 +31,6 @@ Thumbs.db
 # Local redis runtime data
 server/tools/redis/data/*
 !server/tools/redis/data/.gitkeep
+
+# Local admin API persistence
+server/data/admin-local-db.json
